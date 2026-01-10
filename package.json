@@ -1,6 +1,6 @@
 {
-  "name": "ta-uploader",
-  "version": "1.0.9",
+  "name": "ta-uploaderasdas",
+  "version": "1.0.10",
   "description": "A lightweight and efficient file uploading utility for modern web applications. This package provides an easy-to-use interface for handling file uploads, managing upload states, and integrating with your backend services.",
   "main": "uploader.js",
   "scripts": {
