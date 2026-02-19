@@ -4,6 +4,7 @@ class Uploader {
     this.url = options.url;
     this.headers = options.headers;
     this.started = options.started;
+    this.ended = options.ended;
     this.progress = options.progress;
     this.completed = options.completed;
     this.error = options.error;
@@ -38,6 +39,10 @@ class Uploader {
   }
 
   uploadFromList() {
+    if (this.fileList.length == 0) {
+      this.ended();
+    }
+
     if (this.fileList.length == 0 || this.uploading) {
       return;
     }
@@ -46,14 +51,14 @@ class Uploader {
     let formData = new FormData();
     let file = this.fileList[0];
 
-    formData.append('files[]', file.file);
+    formData.append('file', file.file);
 
     ajax.upload.addEventListener(
       'progress',
       (e) => {
         let percent = Math.floor((e.loaded / e.total) * 100);
         this.uploading = true;
-        this.progress(file.id, percent);
+        this.progress(file.id, percent, e);
       },
       false,
     );
@@ -64,7 +69,15 @@ class Uploader {
         this.uploading = false;
         this.fileList.shift();
         this.uploadFromList();
-        this.error(file.id, 'Error occured!');
+        let message = null;
+
+        try {
+          const jsonResponse = JSON.parse(e.target.response);
+          message = jsonResponse?.message ? jsonResponse?.message : null;
+        } catch (error) {
+          console.error('Could not read json response');
+        }
+        this.error(file.id, message, e);
       },
       false,
     );
@@ -73,7 +86,7 @@ class Uploader {
       'abort',
       (e) => {
         this.uploading = false;
-        this.error(file.id, 'Aborted!');
+        this.error(file.id, 'Error', e);
       },
       false,
     );
@@ -84,10 +97,23 @@ class Uploader {
         this.uploading = false;
         this.fileList.shift();
         this.uploadFromList();
+        let message = null;
         if (e.target.status == 200) {
-          this.completed(file.id, 'File uploaded!');
+          try {
+            const jsonResponse = JSON.parse(e.target.response);
+            message = jsonResponse?.message ? jsonResponse?.message : null;
+          } catch (error) {
+            console.error('Could not read json response', e);
+          }
+          this.completed(file.id, message, e);
         } else {
-          this.error(file.id, e.target.statusText);
+          try {
+            const jsonResponse = JSON.parse(e.target.response);
+            message = jsonResponse?.message ? jsonResponse?.message : null;
+          } catch (error) {
+            console.error('Could not read json response');
+          }
+          this.error(file.id, message, e);
         }
       },
       false,
@@ -96,7 +122,6 @@ class Uploader {
     ajax.open('POST', this.url);
 
     Object.keys(this.headers).forEach((key, i) => {
-      console.log(key, this.headers[key]);
       ajax.setRequestHeader(key, this.headers[key]);
     });
 
