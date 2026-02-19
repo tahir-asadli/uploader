@@ -2,7 +2,7 @@ class Uploader {
   constructor(options) {
     this.fileInputId = options.fileInputId;
     this.url = options.url;
-    this.headers = options.headers;
+    this.headers = options.headers || {};
     this.started = options.started;
     this.ended = options.ended;
     this.progress = options.progress;
@@ -10,6 +10,7 @@ class Uploader {
     this.error = options.error;
     this.fileList = [];
     this.uploading = false;
+    this.idCounter = 0;
     this.init();
   }
 
@@ -34,19 +35,18 @@ class Uploader {
       });
     });
 
-    this.started(this.fileList);
+    if (this.started) {
+      this.started(this.fileList);
+    }
     this.uploadFromList();
   }
 
   uploadFromList() {
-    if (this.fileList.length == 0) {
-      this.ended();
-    }
-
     if (this.fileList.length == 0 || this.uploading) {
       return;
     }
 
+    this.uploading = true;
     let ajax = new XMLHttpRequest();
     let formData = new FormData();
     let file = this.fileList[0];
@@ -57,8 +57,9 @@ class Uploader {
       'progress',
       (e) => {
         let percent = Math.floor((e.loaded / e.total) * 100);
-        this.uploading = true;
-        this.progress(file.id, percent, e);
+        if (this.progress) {
+          this.progress(file.id, percent, e);
+        }
       },
       false,
     );
@@ -68,7 +69,6 @@ class Uploader {
       (e) => {
         this.uploading = false;
         this.fileList.shift();
-        this.uploadFromList();
         let message = null;
 
         try {
@@ -77,7 +77,10 @@ class Uploader {
         } catch (error) {
           console.error('Could not read json response');
         }
-        this.error(file.id, message, e);
+        if (this.error) {
+          this.error(file.id, message, e);
+        }
+        this.uploadFromList();
       },
       false,
     );
@@ -86,7 +89,11 @@ class Uploader {
       'abort',
       (e) => {
         this.uploading = false;
-        this.error(file.id, 'Error', e);
+        this.fileList.shift();
+        if (this.error) {
+          this.error(file.id, 'Error', e);
+        }
+        this.uploadFromList();
       },
       false,
     );
@@ -96,7 +103,6 @@ class Uploader {
       (e) => {
         this.uploading = false;
         this.fileList.shift();
-        this.uploadFromList();
         let message = null;
         if (e.target.status == 200) {
           try {
@@ -105,7 +111,9 @@ class Uploader {
           } catch (error) {
             console.error('Could not read json response', e);
           }
-          this.completed(file.id, message, e);
+          if (this.completed) {
+            this.completed(file.id, message, e);
+          }
         } else {
           try {
             const jsonResponse = JSON.parse(e.target.response);
@@ -113,7 +121,14 @@ class Uploader {
           } catch (error) {
             console.error('Could not read json response');
           }
-          this.error(file.id, message, e);
+          if (this.error) {
+            this.error(file.id, message, e);
+          }
+        }
+        if (this.fileList.length == 0 && this.ended) {
+          this.ended();
+        } else {
+          this.uploadFromList();
         }
       },
       false,
@@ -130,7 +145,7 @@ class Uploader {
   }
 
   uniqueId() {
-    return Math.random().toString(36).slice(2, 7);
+    return `${Date.now()}-${++this.idCounter}`;
   }
 }
 
